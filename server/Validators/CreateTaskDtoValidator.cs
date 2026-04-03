@@ -16,5 +16,8 @@ public class CreateTaskDtoValidator : AbstractValidator<CreateTaskDto>
 
         RuleFor(x => x.AssignedToUserId)
             .GreaterThan(0).WithMessage("A valid AssignedToUserId is required.");
+
+        RuleFor(x => x.AssignedToQAUserId)
+            .GreaterThan(0).WithMessage("A valid AssignedToQAUserId is required.");
     }
 }

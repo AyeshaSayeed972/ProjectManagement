@@ -8,7 +8,6 @@ public class Task
     public int Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? PRLink { get; set; }
-    public string? ApproverName { get; set; }
     public string? Remarks { get; set; }
     public TaskStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -18,4 +17,7 @@ public class Task
 
     public int AssignedToUserId { get; set; }
     public User AssignedToUser { get; set; } = null!;
+
+    public int? AssignedToQAUserId { get; set; }
+    public User? AssignedToQAUser { get; set; }
 }

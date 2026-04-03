@@ -12,8 +12,9 @@ public static class TaskStatusTransitionService
         { TaskStatus.Pending,    TaskStatus.InProgress },
         { TaskStatus.InProgress, TaskStatus.PRRaised   },
         { TaskStatus.PRRaised,   TaskStatus.Merged      },
-        { TaskStatus.Merged,     TaskStatus.Deployed    },
-        { TaskStatus.Deployed,   TaskStatus.Done        }
+        { TaskStatus.Merged,      TaskStatus.QAApproved  },
+        { TaskStatus.QAApproved,  TaskStatus.Deployed    },
+        { TaskStatus.Deployed,    TaskStatus.Done        }
     };
 
     public static bool IsValid(TaskStatus current, TaskStatus next)

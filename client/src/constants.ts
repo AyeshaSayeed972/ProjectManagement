@@ -1,0 +1,3 @@
+export const DEFAULT_PAGE_SIZE = 10
+export const USERS_DROPDOWN_SIZE = 200
+export const DASHBOARD_RECENT_COUNT = 6

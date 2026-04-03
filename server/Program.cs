@@ -81,6 +81,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
+            // Read JWT from HttpOnly cookie instead of Authorization header
+            OnMessageReceived = context =>
+            {
+                context.Token = context.Request.Cookies["access_token"];
+                return Task.CompletedTask;
+            },
             OnTokenValidated = async context =>
             {
                 var jti = context.Principal?.FindFirst(
@@ -103,6 +109,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// CORS for Vite dev server
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ViteDev", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
@@ -112,12 +130,14 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IReleaseRepository, ReleaseRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<IRevokedTokenRepository, RevokedTokenRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
 // Services
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IReleaseService, ReleaseService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 var app = builder.Build();
 
@@ -131,6 +151,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("ViteDev");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

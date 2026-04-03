@@ -10,36 +10,39 @@ public static class DbSeeder
     {
         if (context.Users.Any())
             return;
+ var users = new List<User>
+{
+    new User
+    {
+        Username = "pm_user1",
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword("pm_pass1"),
+        Role = UserRole.PM
+    }
+};
 
-        // ── Users (30 total: 10 PM, 10 Developer, 10 QA) ──────────────────────
-        var users = new List<User>();
+for (int i = 1; i <= 15; i++)
+{
+    users.Add(new User
+    {
+        Username = $"dev_user{i}",
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword($"dev_pass{i}"),
+        Role = UserRole.Developer
+    });
+}
 
-        for (int i = 1; i <= 10; i++)
-            users.Add(new User
-            {
-                Username = $"pm_user{i}",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword($"pm_pass{i}"),
-                Role = UserRole.PM
-            });
+// Add QA users
+for (int i = 1; i <= 15; i++)
+{
+    users.Add(new User
+    {
+        Username = $"qa_user{i}",
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword($"qa_pass{i}"),
+        Role = UserRole.QA
+    });
+}
 
-        for (int i = 1; i <= 10; i++)
-            users.Add(new User
-            {
-                Username = $"dev_user{i}",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword($"dev_pass{i}"),
-                Role = UserRole.Developer
-            });
-
-        for (int i = 1; i <= 10; i++)
-            users.Add(new User
-            {
-                Username = $"qa_user{i}",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword($"qa_pass{i}"),
-                Role = UserRole.QA
-            });
-
-        context.Users.AddRange(users);
-        context.SaveChanges();
+context.Users.AddRange(users);
+context.SaveChanges();
 
         // ── Releases (30 total) ────────────────────────────────────────────────
         var baseDate = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -88,6 +91,7 @@ public static class DbSeeder
 
         // ── Tasks (30 total spread across first 10 releases) ──────────────────
         var devUsers = users.Where(u => u.Role == UserRole.Developer).ToList();
+        var qaUsers  = users.Where(u => u.Role == UserRole.QA).ToList();
 
         var taskTitles = new[]
         {
@@ -103,11 +107,13 @@ public static class DbSeeder
             "Write deployment runbook", "Set up monitoring alerts", "Final QA sign-off"
         };
 
+        // Dev handles: Pending → InProgress → PRRaised → Merged
+        // QA  handles: Merged → QAApproved → Deployed → Done
         var taskStatuses = new[]
         {
             TaskStatus.Done,       TaskStatus.Done,       TaskStatus.Done,       TaskStatus.Done,
             TaskStatus.Done,       TaskStatus.Done,       TaskStatus.Deployed,   TaskStatus.Deployed,
-            TaskStatus.Deployed,   TaskStatus.Deployed,   TaskStatus.Merged,     TaskStatus.Merged,
+            TaskStatus.Deployed,   TaskStatus.Deployed,   TaskStatus.QAApproved, TaskStatus.QAApproved,
             TaskStatus.Merged,     TaskStatus.Merged,     TaskStatus.PRRaised,   TaskStatus.PRRaised,
             TaskStatus.PRRaised,   TaskStatus.PRRaised,   TaskStatus.InProgress, TaskStatus.InProgress,
             TaskStatus.InProgress, TaskStatus.InProgress, TaskStatus.Pending,    TaskStatus.Pending,
@@ -132,15 +138,17 @@ public static class DbSeeder
         {
             var releaseIndex = i % 10;
             var devUser = devUsers[i % devUsers.Count];
-            var status = taskStatuses[i];
+            var qaUser  = qaUsers[i % qaUsers.Count];
+            var status  = taskStatuses[i];
 
             var task = new Entities.Task
             {
-                Title = taskTitles[i],
-                ReleaseId = releases[releaseIndex].Id,
-                AssignedToUserId = devUser.Id,
-                Status = status,
-                CreatedAt = releases[releaseIndex].CreatedAt.AddDays(1 + (i % 5))
+                Title             = taskTitles[i],
+                ReleaseId         = releases[releaseIndex].Id,
+                AssignedToUserId  = devUser.Id,
+                AssignedToQAUserId = qaUser.Id,
+                Status            = status,
+                CreatedAt         = releases[releaseIndex].CreatedAt.AddDays(1 + (i % 5))
             };
 
             if (status >= TaskStatus.PRRaised && i < prLinks.Length)
@@ -148,12 +156,15 @@ public static class DbSeeder
 
             if (status >= TaskStatus.Done)
             {
-                task.ApproverName = $"qa_user{(i % 10) + 1}";
                 task.Remarks = "Verified and approved in QA environment.";
             }
-            else if (status >= TaskStatus.Merged)
+            else if (status >= TaskStatus.QAApproved)
             {
-                task.Remarks = "Merged to main. Awaiting deployment.";
+                task.Remarks = "QA approved. Awaiting deployment.";
+            }
+            else if (status == TaskStatus.Merged)
+            {
+                task.Remarks = "Merged to main. Awaiting QA approval.";
             }
 
             tasks.Add(task);

@@ -16,9 +16,6 @@ public class TaskConfiguration : IEntityTypeConfiguration<Entities.Task>
         builder.Property(t => t.PRLink)
                .HasMaxLength(500);
 
-        builder.Property(t => t.ApproverName)
-               .HasMaxLength(100);
-
         builder.Property(t => t.Remarks)
                .HasMaxLength(1000);
 
@@ -33,5 +30,11 @@ public class TaskConfiguration : IEntityTypeConfiguration<Entities.Task>
                .WithMany(u => u.AssignedTasks)
                .HasForeignKey(t => t.AssignedToUserId)
                .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(t => t.AssignedToQAUser)
+               .WithMany(u => u.QAAssignedTasks)
+               .HasForeignKey(t => t.AssignedToQAUserId)
+               .OnDelete(DeleteBehavior.Restrict)
+               .IsRequired(false);
     }
 }

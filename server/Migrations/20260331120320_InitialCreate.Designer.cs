@@ -72,15 +72,39 @@ namespace ProjectManagement.Migrations
                     b.ToTable("RevokedTokens");
                 });
 
-            modelBuilder.Entity("ProjectManagement.Entities.Task", b =>
+            modelBuilder.Entity("ProjectManagement.Entities.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ApproverName")
-                        .HasMaxLength(100)
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Entities.Task", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("AssignedToUserId")
                         .HasColumnType("INTEGER");
@@ -135,6 +159,17 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("ProjectManagement.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectManagement.Entities.Task", b =>

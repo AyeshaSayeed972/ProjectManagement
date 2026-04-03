@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Entities;
+using ProjectManagement.Enums;
 using ProjectManagement.Repositories.Interfaces;
 
 namespace ProjectManagement.Repositories;
@@ -30,6 +31,20 @@ public class UserRepository : IUserRepository
         var items = await _context.Users
             .AsNoTracking()
             .OrderBy(u => u.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+        return (items, totalCount);
+    }
+
+    public async Task<(IEnumerable<User> Items, int TotalCount)> GetFilteredPagedAsync(int pageNumber, int pageSize, UserRole? role)
+    {
+        var query = _context.Users.AsNoTracking();
+        if (role.HasValue)
+            query = query.Where(u => u.Role == role.Value);
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .OrderBy(u => u.Username)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

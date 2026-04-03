@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.DTOs.Common;
 using ProjectManagement.DTOs.Task;
 using ProjectManagement.Enums;
+using ProjectManagement.Exceptions;
 using ProjectManagement.Services.Interfaces;
+using TaskStatus = ProjectManagement.Enums.TaskStatus;
 
 namespace ProjectManagement.Controllers;
 
@@ -20,10 +22,26 @@ public class TasksController : ControllerBase
         _taskService = taskService;
     }
 
-    [HttpGet("release/{releaseId:int}")]
-    public async Task<IActionResult> GetByRelease(int releaseId, [FromQuery] PaginationQuery pagination)
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] PaginationQuery pagination,
+        [FromQuery] TaskStatus? status = null,
+        [FromQuery] string? assignedToUsername = null,
+        [FromQuery] string? userRole = null)
     {
-        var result = await _taskService.GetByReleaseAsync(releaseId, pagination.PageNumber, pagination.PageSize);
+        var result = await _taskService.GetAllAsync(pagination.PageNumber, pagination.PageSize, status, assignedToUsername, userRole);
+        return Ok(result);
+    }
+
+    [HttpGet("release/{releaseId:int}")]
+    public async Task<IActionResult> GetByRelease(
+        int releaseId,
+        [FromQuery] PaginationQuery pagination,
+        [FromQuery] TaskStatus? status = null,
+        [FromQuery] string? assignedToUsername = null,
+        [FromQuery] string? userRole = null)
+    {
+        var result = await _taskService.GetByReleaseAsync(releaseId, pagination.PageNumber, pagination.PageSize, status, assignedToUsername, userRole);
         return Ok(result);
     }
 
@@ -87,8 +105,18 @@ public class TasksController : ControllerBase
     }
 
     private int GetCurrentUserId()
-        => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(value, out var id))
+            throw new ForbiddenException("Invalid user identity claim.");
+        return id;
+    }
 
     private UserRole GetCurrentUserRole()
-        => Enum.Parse<UserRole>(User.FindFirstValue(ClaimTypes.Role)!);
+    {
+        var value = User.FindFirstValue(ClaimTypes.Role);
+        if (!Enum.TryParse<UserRole>(value, out var role))
+            throw new ForbiddenException("Invalid role claim.");
+        return role;
+    }
 }

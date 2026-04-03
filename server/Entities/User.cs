@@ -10,4 +10,5 @@ public class User
     public UserRole Role { get; set; }
 
     public ICollection<Task> AssignedTasks { get; set; } = new List<Task>();
+    public ICollection<Task> QAAssignedTasks { get; set; } = new List<Task>();
 }

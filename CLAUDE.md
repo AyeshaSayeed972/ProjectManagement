@@ -1,289 +1,85 @@
-# Release & Task Management Tool – Development Guide
+# CLAUDE.md
 
-## Overview
-
-This project is a small internal tool designed to manage releases and tasks across Product Management (PM), Development, and QA teams. The goal is to ensure transparency, accountability, and smooth collaboration.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
 
-## Roles & Responsibilities
+## Project Overview
 
-### PM (Product Manager)
-
-* Create, update, and delete Releases
-* Create, update, and delete Tasks
-
-### Development
-
-* Update task status
-* Add PR link
-* Add remarks
-
-### QA
-
-* Update task status
-* Add approver name
-* Add remarks
+A release and task management tool for PM, Developer, and QA teams. Full-stack: ASP.NET Core 10 API (`/server`) + React 18 SPA (`/client`).
 
 ---
 
-## Core Data Model
+## Dev Commands
 
-### Release
-
-* Title
-* Description
-* StartDate
-* EndDate
-* Status:
-
-  * Upcoming
-  * Active
-  * Shipped
-  * Cancelled
-
-### Task
-
-* Title
-* AssignedTo
-* PRLink
-* ApproverName
-* Remarks
-* Status Flow:
-
-  * Pending
-  * InProgress
-  * PRRaised
-  * Merged
-  * Deployed
-  * Done
-
----
-
-## Technical Stack
-
-* .NET 10 Web API
-* Entity Framework Core
-* SQL Database
-* JWT Authentication
-
----
-
-## Architecture & Layering
-
-Follow strict separation of concerns:
-
+### Server (run from `/server`)
+```bash
+dotnet build
+dotnet run                         # runs on http://localhost:5105
+dotnet watch run                   # hot reload
+dotnet ef migrations add <Name>    # add a new migration
+dotnet ef database update          # apply migrations manually
 ```
-Controller → Service → Repository → Database
-```
+The server auto-migrates and seeds the database on startup via `DbSeeder.Seed()`. Database is SQLite (`projectmanagement.db`).
 
-### Controller Layer
-
-* Thin layer
-* Handles HTTP requests/responses only
-* No business logic
-
-### Service Layer
-
-* Contains business logic
-* Handles role-based rules
-* Coordinates repositories
-
-### Repository Layer
-
-* Data access logic only
-* No business rules
-
----
-
-## Project Structure (Suggested)
-
-```
-/src
-  /Controllers
-  /Services
-  /Repositories
-  /DTOs
-  /Entities
-  /Configurations (Fluent API)
-  /Enums
-  /Middleware
-  /Validators
-  /Auth
+### Client (run from `/client`)
+```bash
+npm install
+npm run dev      # http://localhost:5173, proxies /api → http://localhost:5105
+npm run build    # runs tsc -b then vite build
 ```
 
 ---
 
-## Entity Framework Configuration
+## Architecture
 
-* Use Fluent API (NOT Data Annotations for DB mapping)
-* Keep configurations in separate classes
-* Apply via `IEntityTypeConfiguration<T>`
-
-Example:
-
-```csharp
-public class TaskConfiguration : IEntityTypeConfiguration<Task>
-{
-    public void Configure(EntityTypeBuilder<Task> builder)
-    {
-        builder.Property(t => t.Title)
-               .IsRequired()
-               .HasMaxLength(200);
-    }
-}
+### Server Layer Flow
+```
+Controller → Service → Repository → AppDbContext (EF Core / SQLite)
 ```
 
----
+- **Controllers** — thin, HTTP only; `[Authorize(Roles = "...")]` applied here
+- **Services** — all business logic and role enforcement (also enforce here, not just controller)
+- **Repositories** — data access only, no business rules
+- **DTOs** — always use; never expose entities directly
+- **Validators** — FluentValidation; kept in `/Validators/`, one per DTO
 
-## DTO Usage
+### Key Directories
+| Directory | Purpose |
+|---|---|
+| `Auth/` | `JwtTokenService` — generates access tokens (15 min) and refresh tokens (7 days, stored as hash) |
+| `Data/` | `AppDbContext`, `DbSeeder` |
+| `Configurations/` | EF Core Fluent API configs — `IEntityTypeConfiguration<T>`, NOT data annotations |
+| `Exceptions/` | `AppException` base + `NotFoundException`, `ForbiddenException`, `BadRequestException`, `ConflictException` |
+| `Middleware/` | `ExceptionHandlingMiddleware` — catches all `AppException` subclasses, returns `{ success, statusCode, message }` |
+| `Enums/` | `UserRole` (PM, Developer, QA), `TaskStatus`, `ReleaseStatus` |
 
-* Always use DTOs
-* Never expose entities directly
+### Authentication Flow
+- Login → returns `{ accessToken, refreshToken }`
+- Access tokens are short-lived JWTs (15 min); refresh tokens are hashed in `RefreshToken` entity
+- Revoked access tokens tracked by JTI in `RevokedToken` entity (blacklist checked in `OnTokenValidated`)
+- Refresh token rotation: each refresh call revokes the old refresh token and issues a new pair
+- Logout revokes both tokens
 
-Examples:
-
-* CreateTaskDto
-* UpdateTaskDto
-* TaskResponseDto
-
----
-
-## Dependency Injection
-
-* Use built-in DI container
-* Register services and repositories in `Program.cs`
-* Avoid manual instantiation (`new` inside logic)
-
----
-
-## Validation Strategy
-
-Use centralized validation:
-
-Options:
-
-* Data Annotations (simple)
-* FluentValidation (preferred for scalability)
-
-Rules:
-
-* Keep validation in one place
-* Do not scatter validation across layers
-
-Example:
-
-```csharp
-public class CreateTaskValidator : AbstractValidator<CreateTaskDto>
-{
-    public CreateTaskValidator()
-    {
-        RuleFor(x => x.Title).NotEmpty();
-    }
-}
+### Task Status Flow (strict, no skipping)
 ```
-
----
-
-## Error Handling
-
-* Use global exception middleware
-* Return consistent API responses
-
-Example response:
-
-```json
-{
-  "success": false,
-  "message": "Validation failed",
-  "errors": ["Title is required"]
-}
+Pending → InProgress → PRRaised → Merged → Deployed → Done → QAApproved
 ```
+Transition validation lives in `TaskStatusTransitionService`. The current enum has `QAApproved = 6` as an additional state beyond `Done`.
+
+### Client Structure
+- `src/api/axios.ts` — Axios instance with request interceptor (attaches Bearer token) and response interceptor (silent 401 refresh with request queue to prevent concurrent refreshes)
+- `src/contexts/AuthContext.tsx` — auth state; tokens stored in `localStorage` under key `auth_data`
+- `src/types/index.ts` — all shared TypeScript types/enums (keep in sync with server enums)
+- Path alias `@` maps to `./src`
 
 ---
 
-## Authentication & Security
+## Key Constraints
 
-* JWT-based authentication
-* Role-based authorization
-
-### Requirements
-
-* Passwords must be hashed (e.g., BCrypt)
-* JWT secrets stored in configuration (appsettings / environment variables)
-* Do NOT hardcode secrets
-
-### Role Enforcement
-
-* Apply `[Authorize]` at controller level
-* ALSO enforce roles inside service layer (critical)
-
----
-
-## Business Rules
-
-### Task Status Flow (Strict Order)
-
-```
-Pending → InProgress → PRRaised → Merged → Deployed → Done
-```
-
-* No skipping steps
-* Validate transitions inside service layer
-
----
-
-## Design Patterns (Use Where Appropriate)
-
-Suggested patterns:
-
-1. **Strategy Pattern**
-
-   * For handling task status transitions
-
-2. **Factory Pattern**
-
-   * For creating domain objects cleanly
-
-Avoid overengineering.
-
----
-
-## Coding Guidelines
-
-* Follow Single Responsibility Principle
-* Keep classes small and focused
-* Avoid large files handling multiple concerns
-* Avoid long if/else chains
-
-  * Prefer mapping or pattern-based approaches
-* Write readable and maintainable code
-
----
-
-## Focus Areas
-
-* Clean architecture
-* Proper separation of concerns
-* Maintainability
-* Readability
-* Consistent structure
-
----
-
-## Deliverable Expectations
-
-* Well-structured project
-* Clean layering
-* Proper use of DTOs
-* Fluent API configurations
-* JWT authentication implemented
-* Role-based access enforced
-* Centralized validation
-* Consistent error handling
-
----
-
-## Notes
-
-This is a POC, but should reflect production-quality thinking in terms of structure and practices.
+- **EF Core config**: Use Fluent API in `IEntityTypeConfiguration<T>` classes, never data annotations for DB mapping
+- **Role enforcement**: Apply at controller level AND re-enforce in service layer
+- **Error responses**: Always throw a typed `AppException` subclass — middleware handles formatting
+- **Validation**: FluentValidation validators registered via `AddValidatorsFromAssemblyContaining<Program>()` and auto-wired via `AddFluentValidationAutoValidation()`
+- **DI**: All services and repositories registered as `Scoped` in `Program.cs`
+- **No tests** currently exist in the project

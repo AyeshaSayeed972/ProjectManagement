@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Release> Releases => Set<Release>();
     public DbSet<Entities.Task> Tasks => Set<Entities.Task>();
     public DbSet<RevokedToken> RevokedTokens => Set<RevokedToken>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,5 +20,6 @@ public class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ReleaseConfiguration());
         modelBuilder.ApplyConfiguration(new TaskConfiguration());
         modelBuilder.ApplyConfiguration(new RevokedTokenConfiguration());
+        modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
     }
 }

@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.DTOs.Task;
+using ProjectManagement.Enums;
 using ProjectManagement.Exceptions;
 using ProjectManagement.Repositories.Interfaces;
+using TaskStatus = ProjectManagement.Enums.TaskStatus;
 
 namespace ProjectManagement.Repositories;
 
@@ -20,33 +22,102 @@ public class TaskRepository : ITaskRepository
     public async Task<Entities.Task?> GetByIdAsync(int id)
         => await _context.Tasks
             .Include(t => t.AssignedToUser)
+            .Include(t => t.AssignedToQAUser)
+            .Include(t => t.Release)
             .FirstOrDefaultAsync(t => t.Id == id);
 
     // Counts on the filtered table (no JOIN needed), then loads one page via projection.
     // EF generates a LEFT JOIN to Users for AssignedToUser.Username.
     public async Task<(IEnumerable<TaskResponseDto> Items, int TotalCount)> GetByReleaseIdPagedAsync(
-        int releaseId, int pageNumber, int pageSize)
+        int releaseId, int pageNumber, int pageSize, TaskStatus? status = null, string? assignedToUsername = null, string? userRole = null)
     {
-        var totalCount = await _context.Tasks
-            .CountAsync(t => t.ReleaseId == releaseId);
+        var query = _context.Tasks.Where(t => t.ReleaseId == releaseId);
+        if (status.HasValue) query = query.Where(t => t.Status == status.Value);
+        if (!string.IsNullOrEmpty(assignedToUsername))
+{
+    if (userRole == "QA")
+    {
+        query = query.Where(t =>
+            t.AssignedToQAUser != null &&
+            t.AssignedToQAUser.Username == assignedToUsername
+        );
+    }
+    else
+    {
+        query = query.Where(t =>
+            t.AssignedToUser.Username == assignedToUsername
+        );
+    }
+}
 
-        var items = await _context.Tasks
-            .Where(t => t.ReleaseId == releaseId)
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .OrderByDescending(t => t.CreatedAt)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(t => new TaskResponseDto
             {
-                Id                 = t.Id,
-                Title              = t.Title,
-                ReleaseId          = t.ReleaseId,
-                AssignedToUserId   = t.AssignedToUserId,
-                AssignedToUsername = t.AssignedToUser.Username,
-                PRLink             = t.PRLink,
-                ApproverName       = t.ApproverName,
-                Remarks            = t.Remarks,
-                Status             = t.Status,
-                CreatedAt          = t.CreatedAt
+                Id                   = t.Id,
+                Title                = t.Title,
+                ReleaseId            = t.ReleaseId,
+                ReleaseTitle         = t.Release.Title,
+                AssignedToUserId     = t.AssignedToUserId,
+                AssignedToUsername   = t.AssignedToUser.Username,
+                AssignedToQAUserId   = t.AssignedToQAUserId,
+                AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.Username,
+                PRLink               = t.PRLink,
+                Remarks              = t.Remarks,
+                Status               = t.Status,
+                CreatedAt            = t.CreatedAt
+            })
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
+
+    public async Task<(IEnumerable<TaskResponseDto> Items, int TotalCount)> GetAllPagedAsync(
+        int pageNumber, int pageSize, TaskStatus? status = null, string? assignedToUsername = null, string? userRole = null)
+    {
+        var query = _context.Tasks.AsQueryable();
+        if (status.HasValue) query = query.Where(t => t.Status == status.Value);
+                if (!string.IsNullOrEmpty(assignedToUsername))
+{
+    if (userRole == "QA")
+    {
+        query = query.Where(t =>
+            t.AssignedToQAUser != null &&
+            t.AssignedToQAUser.Username == assignedToUsername
+        );
+    }
+    else
+    {
+        query = query.Where(t =>
+            t.AssignedToUser.Username == assignedToUsername
+        );
+    }
+}
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(t => t.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => new TaskResponseDto
+            {
+                Id                   = t.Id,
+                Title                = t.Title,
+                ReleaseId            = t.ReleaseId,
+                ReleaseTitle         = t.Release.Title,
+                AssignedToUserId     = t.AssignedToUserId,
+                AssignedToUsername   = t.AssignedToUser.Username,
+                AssignedToQAUserId   = t.AssignedToQAUserId,
+                AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.Username,
+                PRLink               = t.PRLink,
+                Remarks              = t.Remarks,
+                Status               = t.Status,
+                CreatedAt            = t.CreatedAt
             })
             .ToListAsync();
 

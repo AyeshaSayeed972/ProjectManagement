@@ -24,9 +24,21 @@ public class TaskService : ITaskService
         _userRepository = userRepository;
     }
 
-    public async Task<PagedResult<TaskResponseDto>> GetByReleaseAsync(int releaseId, int pageNumber, int pageSize)
+    public async Task<PagedResult<TaskResponseDto>> GetAllAsync(int pageNumber, int pageSize, TaskStatus? status = null, string? assignedToUsername = null, string? userRole = null)
     {
-        var (items, totalCount) = await _taskRepository.GetByReleaseIdPagedAsync(releaseId, pageNumber, pageSize);
+        var (items, totalCount) = await _taskRepository.GetAllPagedAsync(pageNumber, pageSize, status, assignedToUsername, userRole);
+        return new PagedResult<TaskResponseDto>
+        {
+            Data = items,
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<PagedResult<TaskResponseDto>> GetByReleaseAsync(int releaseId, int pageNumber, int pageSize, TaskStatus? status = null, string? assignedToUsername = null, string? userRole = null)
+    {
+        var (items, totalCount) = await _taskRepository.GetByReleaseIdPagedAsync(releaseId, pageNumber, pageSize, status, assignedToUsername, userRole);
         return new PagedResult<TaskResponseDto>
         {
             Data = items,
@@ -47,14 +59,22 @@ public class TaskService : ITaskService
         if (await _releaseRepository.GetByIdAsync(dto.ReleaseId) is null)
             throw new NotFoundException($"Release with id {dto.ReleaseId} not found.");
 
-        if (!await _userRepository.ExistsAsync(dto.AssignedToUserId))
-            throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
+        var devUser = await _userRepository.GetByIdAsync(dto.AssignedToUserId)
+            ?? throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
+        if (devUser.Role != UserRole.Developer)
+            throw new BadRequestException("AssignedToUserId must refer to a Developer.");
+
+        var qaUser = await _userRepository.GetByIdAsync(dto.AssignedToQAUserId)
+            ?? throw new NotFoundException($"QA user with id {dto.AssignedToQAUserId} not found.");
+        if (qaUser.Role != UserRole.QA)
+            throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
 
         var task = new Entities.Task
         {
             Title = dto.Title,
             ReleaseId = dto.ReleaseId,
             AssignedToUserId = dto.AssignedToUserId,
+            AssignedToQAUserId = dto.AssignedToQAUserId,
             Status = TaskStatus.Pending,
             CreatedAt = DateTime.UtcNow
         };
@@ -69,11 +89,19 @@ public class TaskService : ITaskService
         var task = await _taskRepository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Task with id {id} not found.");
 
-        if (!await _userRepository.ExistsAsync(dto.AssignedToUserId))
-            throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
+        var devUser = await _userRepository.GetByIdAsync(dto.AssignedToUserId)
+            ?? throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
+        if (devUser.Role != UserRole.Developer)
+            throw new BadRequestException("AssignedToUserId must refer to a Developer.");
+
+        var qaUser = await _userRepository.GetByIdAsync(dto.AssignedToQAUserId)
+            ?? throw new NotFoundException($"QA user with id {dto.AssignedToQAUserId} not found.");
+        if (qaUser.Role != UserRole.QA)
+            throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
 
         task.Title = dto.Title;
         task.AssignedToUserId = dto.AssignedToUserId;
+        task.AssignedToQAUserId = dto.AssignedToQAUserId;
 
         await _taskRepository.UpdateAsync(task);
 
@@ -90,8 +118,23 @@ public class TaskService : ITaskService
         var task = await _taskRepository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Task with id {id} not found.");
 
-        if (requestingUserRole != UserRole.PM && task.AssignedToUserId != requestingUserId)
-            throw new ForbiddenException("You are not assigned to this task.");
+        var devStatuses = new[] { TaskStatus.InProgress, TaskStatus.PRRaised, TaskStatus.Merged };
+        var qaStatuses  = new[] { TaskStatus.QAApproved, TaskStatus.Deployed, TaskStatus.Done };
+
+        if (requestingUserRole == UserRole.Developer)
+        {
+            if (!devStatuses.Contains(dto.NewStatus))
+                throw new ForbiddenException("Developers can only advance tasks up to 'Merged'.");
+            if (task.AssignedToUserId != requestingUserId)
+                throw new ForbiddenException("You are not the assigned developer for this task.");
+        }
+        else if (requestingUserRole == UserRole.QA)
+        {
+            if (!qaStatuses.Contains(dto.NewStatus))
+                throw new ForbiddenException("QA can only advance tasks from 'Merged' through 'Done'.");
+            if (task.AssignedToQAUserId != requestingUserId)
+                throw new ForbiddenException("You are not the assigned QA for this task.");
+        }
 
         if (!TaskStatusTransitionService.IsValid(task.Status, dto.NewStatus))
             throw new BadRequestException(
@@ -127,10 +170,9 @@ public class TaskService : ITaskService
         var task = await _taskRepository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Task with id {id} not found.");
 
-        if (task.AssignedToUserId != requestingUserId)
-            throw new ForbiddenException("You are not assigned to this task.");
+        if (task.AssignedToQAUserId != requestingUserId)
+            throw new ForbiddenException("You are not the assigned QA for this task.");
 
-        task.ApproverName = dto.ApproverName;
         task.Remarks = dto.Remarks;
 
         await _taskRepository.UpdateAsync(task);
@@ -152,10 +194,12 @@ public class TaskService : ITaskService
         Id = task.Id,
         Title = task.Title,
         ReleaseId = task.ReleaseId,
+        ReleaseTitle = task.Release?.Title ?? string.Empty,
         AssignedToUserId = task.AssignedToUserId,
         AssignedToUsername = task.AssignedToUser?.Username ?? string.Empty,
+        AssignedToQAUserId = task.AssignedToQAUserId,
+        AssignedToQAUsername = task.AssignedToQAUser?.Username,
         PRLink = task.PRLink,
-        ApproverName = task.ApproverName,
         Remarks = task.Remarks,
         Status = task.Status,
         CreatedAt = task.CreatedAt
