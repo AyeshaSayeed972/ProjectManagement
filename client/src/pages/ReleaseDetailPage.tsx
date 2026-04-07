@@ -1,12 +1,13 @@
 import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Pencil, Trash2, ExternalLink, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, ExternalLink, ChevronRight, Download } from 'lucide-react'
 import { Layout } from '@/components/layout/Layout'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Pagination } from '@/components/ui/Pagination'
 import { Table, Column } from '@/components/ui/Table'
 import { ReleaseDetailModals } from '@/components/release/ReleaseDetailModals'
+import { JiraIssuePanel } from '@/components/jira/JiraIssuePanel'
 import { useReleaseDetail } from '@/hooks/useReleaseDetail'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDate, formatDateRange } from '@/utils/dateHelpers'
@@ -35,17 +36,22 @@ export const ReleaseDetailPage: React.FC = () => {
     deleteTaskTarget, setDeleteTaskTarget,
     devFieldsTask, setDevFieldsTask,
     qaFieldsTask, setQAFieldsTask,
+    jiraBaseUrl,
+    linkJiraTask, setLinkJiraTask,
+    createJiraIssueTask, setCreateJiraIssueTask,
+    jiraImportOpen, setJiraImportOpen,
     loadUsers,
     handleEditRelease, handleDeleteRelease,
     handleAddTask, handleEditTask, handleDeleteTask,
     handleAdvanceStatus, handleDevFields, handleQAFields,
+    handleLinkJira, handleUnlinkJira, handleCreateJiraIssue,
   } = useReleaseDetail(releaseId)
 
   const taskColumns: Column<TaskResponse>[] = [
     {
       key: 'title',
       header: 'Title',
-      render: (row) => <span className="font-medium text-gray-900">{row.title}</span>,
+      render: (row) => <span className="block font-medium text-gray-900 max-w-xs break-words">{row.title}</span>,
     },
     {
       key: 'assignedToUsername',
@@ -76,6 +82,20 @@ export const ReleaseDetailPage: React.FC = () => {
         ) : (
           <span className="text-gray-400">—</span>
         ),
+    },
+    {
+      key: 'jiraIssueKey',
+      header: 'Jira',
+      render: (row) => (
+        <JiraIssuePanel
+          task={row}
+          isPM={isPM}
+          jiraBaseUrl={jiraBaseUrl}
+          onLink={(t) => setLinkJiraTask(t)}
+          onUnlink={handleUnlinkJira}
+          onCreateIssue={(t) => setCreateJiraIssueTask(t)}
+        />
+      ),
     },
     {
       key: 'assignedToQAUsername',
@@ -218,20 +238,30 @@ export const ReleaseDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Tasks */}
+      {/* Tasks header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-semibold text-gray-900">
           Tasks{tasksResult ? ` (${tasksResult.totalCount})` : ''}
         </h3>
         {isPM && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => { loadUsers(); setAddTaskOpen(true) }}
-          >
-            <Plus className="w-4 h-4" />
-            Add Task
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { loadUsers(); setJiraImportOpen(true) }}
+            >
+              <Download className="w-4 h-4" />
+              Import from Jira
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => { loadUsers(); setAddTaskOpen(true) }}
+            >
+              <Plus className="w-4 h-4" />
+              Add Task
+            </Button>
+          </div>
         )}
       </div>
 
@@ -263,6 +293,7 @@ export const ReleaseDetailPage: React.FC = () => {
         users={users}
         actionLoading={actionLoading}
         actionError={actionError}
+        jiraBaseUrl={jiraBaseUrl}
         editReleaseOpen={editReleaseOpen}
         deleteReleaseOpen={deleteReleaseOpen}
         addTaskOpen={addTaskOpen}
@@ -270,13 +301,19 @@ export const ReleaseDetailPage: React.FC = () => {
         deleteTaskTarget={deleteTaskTarget}
         devFieldsTask={devFieldsTask}
         qaFieldsTask={qaFieldsTask}
-        onCloseEditRelease={() => { setEditReleaseOpen(false) }}
+        linkJiraTask={linkJiraTask}
+        createJiraIssueTask={createJiraIssueTask}
+        jiraImportOpen={jiraImportOpen}
+        onCloseEditRelease={() => setEditReleaseOpen(false)}
         onCloseDeleteRelease={() => setDeleteReleaseOpen(false)}
-        onCloseAddTask={() => { setAddTaskOpen(false) }}
-        onCloseEditTask={() => { setEditTask(null) }}
+        onCloseAddTask={() => setAddTaskOpen(false)}
+        onCloseEditTask={() => setEditTask(null)}
         onCloseDeleteTask={() => setDeleteTaskTarget(null)}
-        onCloseDevFields={() => { setDevFieldsTask(null) }}
-        onCloseQAFields={() => { setQAFieldsTask(null) }}
+        onCloseDevFields={() => setDevFieldsTask(null)}
+        onCloseQAFields={() => setQAFieldsTask(null)}
+        onCloseLinkJira={() => setLinkJiraTask(null)}
+        onCloseCreateJiraIssue={() => setCreateJiraIssueTask(null)}
+        onCloseJiraImport={() => setJiraImportOpen(false)}
         onEditRelease={handleEditRelease}
         onDeleteRelease={handleDeleteRelease}
         onAddTask={handleAddTask}
@@ -284,6 +321,9 @@ export const ReleaseDetailPage: React.FC = () => {
         onDeleteTask={handleDeleteTask}
         onDevFields={handleDevFields}
         onQAFields={handleQAFields}
+        onLinkJira={handleLinkJira}
+        onCreateJiraIssue={handleCreateJiraIssue}
+        onJiraImportSuccess={() => { loadUsers() }}
       />
     </Layout>
   )

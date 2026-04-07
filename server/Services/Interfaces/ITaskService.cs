@@ -1,4 +1,5 @@
 using ProjectManagement.DTOs.Common;
+using ProjectManagement.DTOs.Jira;
 using ProjectManagement.DTOs.Task;
 using ProjectManagement.Enums;
 using TaskStatus = ProjectManagement.Enums.TaskStatus;
@@ -16,4 +17,10 @@ public interface ITaskService
     Task<TaskResponseDto> UpdateDevFieldsAsync(int id, UpdateDevFieldsDto dto, int requestingUserId);
     Task<TaskResponseDto> UpdateQAFieldsAsync(int id, UpdateQAFieldsDto dto, int requestingUserId);
     Task DeleteAsync(int id);
+
+    // Jira integration
+    Task<TaskResponseDto> LinkJiraIssueAsync(int taskId, string issueKey);
+    Task<TaskResponseDto> UnlinkJiraIssueAsync(int taskId);
+    Task<TaskResponseDto> CreateJiraIssueForTaskAsync(int taskId, CreateJiraIssueDto dto);
+    Task<TaskResponseDto> ImportFromJiraAsync(JiraImportDto dto);
 }

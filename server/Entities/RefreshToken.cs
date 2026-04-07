@@ -1,7 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ProjectManagement.Entities;
 
 public class RefreshToken
 {
+    [Key]
+    [Required]
+    [MaxLength(10)]
     public int Id { get; set; }
     public string TokenHash { get; set; } = string.Empty;
     public int UserId { get; set; }

@@ -6,14 +6,8 @@ using Task = System.Threading.Tasks.Task;
 
 namespace ProjectManagement.Repositories;
 
-public class RefreshTokenRepository : IRefreshTokenRepository
+public class RefreshTokenRepository(AppDbContext _context) : IRefreshTokenRepository
 {
-    private readonly AppDbContext _context;
-
-    public RefreshTokenRepository(AppDbContext context)
-    {
-        _context = context;
-    }
 
     public async Task<RefreshToken?> GetByTokenHashAsync(string tokenHash)
         => await _context.RefreshTokens.FirstOrDefaultAsync(r => r.TokenHash == tokenHash);

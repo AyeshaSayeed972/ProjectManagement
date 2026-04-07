@@ -131,6 +131,7 @@ builder.Services.AddScoped<IReleaseRepository, ReleaseRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<IRevokedTokenRepository, RevokedTokenRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IJiraSettingsRepository, JiraSettingsRepository>();
 
 // Services
 builder.Services.AddScoped<JwtTokenService>();
@@ -138,6 +139,11 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IReleaseService, ReleaseService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IJiraSettingsService, JiraSettingsService>();
+builder.Services.AddScoped<IJiraService, JiraService>();
+
+// Named HttpClient for Jira API
+builder.Services.AddHttpClient("Jira");
 
 var app = builder.Build();
 
@@ -157,11 +163,11 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Apply migrations and seed data on startup
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-    DbSeeder.Seed(db);
-}
+using var scope = app.Services.CreateScope();
+
+var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+db.Database.Migrate();
+DbSeeder.Seed(db);
+
 
 app.Run();

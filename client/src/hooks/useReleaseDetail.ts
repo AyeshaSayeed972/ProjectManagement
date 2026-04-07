@@ -12,11 +12,12 @@ import {
   deleteTask,
 } from '@/api/tasksApi'
 import { getUsers } from '@/api/usersApi'
+import { getJiraSettings, linkJiraIssue, unlinkJiraIssue, createJiraIssueForTask } from '@/api/jiraApi'
 import { usePagination } from '@/hooks/usePagination'
 import { fromInputDateValue } from '@/utils/dateHelpers'
 import { getNextTaskStatus } from '@/utils/statusHelpers'
 import { USERS_DROPDOWN_SIZE } from '@/constants'
-import type { ReleaseResponse, TaskResponse, UserResponse, PagedResult, ReleaseStatus } from '@/types'
+import type { ReleaseResponse, TaskResponse, UserResponse, PagedResult, ReleaseStatus, CreateJiraIssueRequest } from '@/types'
 import axios from 'axios'
 
 export const useReleaseDetail = (releaseId: number) => {
@@ -42,6 +43,18 @@ export const useReleaseDetail = (releaseId: number) => {
   const [deleteTaskTarget, setDeleteTaskTarget] = useState<TaskResponse | null>(null)
   const [devFieldsTask, setDevFieldsTask] = useState<TaskResponse | null>(null)
   const [qaFieldsTask, setQAFieldsTask] = useState<TaskResponse | null>(null)
+
+  // Jira modal states
+  const [linkJiraTask, setLinkJiraTask] = useState<TaskResponse | null>(null)
+  const [createJiraIssueTask, setCreateJiraIssueTask] = useState<TaskResponse | null>(null)
+  const [jiraImportOpen, setJiraImportOpen] = useState(false)
+  const [jiraBaseUrl, setJiraBaseUrl] = useState('')
+
+  useEffect(() => {
+    getJiraSettings()
+      .then((s) => setJiraBaseUrl(s.baseUrl))
+      .catch(() => {})
+  }, [])
 
   const fetchRelease = useCallback(async () => {
     try {
@@ -229,6 +242,49 @@ export const useReleaseDetail = (releaseId: number) => {
     }
   }
 
+  // ── Jira handlers ─────────────────────────────────────────────────────────
+
+  const handleLinkJira = async (task: TaskResponse, issueKey: string) => {
+    setActionLoading(true)
+    try {
+      await linkJiraIssue(task.id, issueKey)
+      setLinkJiraTask(null)
+      fetchTasks()
+      toast.success(`Linked to ${issueKey}`)
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed to link.' : 'Failed to link.'
+      toast.error(msg)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleUnlinkJira = async (task: TaskResponse) => {
+    try {
+      await unlinkJiraIssue(task.id)
+      fetchTasks()
+      toast.success('Jira link removed')
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed to unlink.' : 'Failed to unlink.'
+      toast.error(msg)
+    }
+  }
+
+  const handleCreateJiraIssue = async (task: TaskResponse, dto: CreateJiraIssueRequest) => {
+    setActionLoading(true)
+    try {
+      const updated = await createJiraIssueForTask(task.id, dto)
+      setCreateJiraIssueTask(null)
+      fetchTasks()
+      toast.success(`Jira issue ${updated.jiraIssueKey} created`)
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed to create issue.' : 'Failed to create issue.'
+      toast.error(msg)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   return {
     // Data
     release,
@@ -262,5 +318,14 @@ export const useReleaseDetail = (releaseId: number) => {
     handleAdvanceStatus,
     handleDevFields,
     handleQAFields,
+    // Jira state
+    jiraBaseUrl,
+    linkJiraTask, setLinkJiraTask,
+    createJiraIssueTask, setCreateJiraIssueTask,
+    jiraImportOpen, setJiraImportOpen,
+    // Jira actions
+    handleLinkJira,
+    handleUnlinkJira,
+    handleCreateJiraIssue,
   }
 }

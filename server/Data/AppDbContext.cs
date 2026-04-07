@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Entities.Task> Tasks => Set<Entities.Task>();
     public DbSet<RevokedToken> RevokedTokens => Set<RevokedToken>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<JiraSettings> JiraSettings => Set<JiraSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,5 +22,6 @@ public class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TaskConfiguration());
         modelBuilder.ApplyConfiguration(new RevokedTokenConfiguration());
         modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
+        modelBuilder.ApplyConfiguration(new JiraSettingsConfiguration());
     }
 }

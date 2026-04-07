@@ -7,6 +7,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { ReleasesPage } from '@/pages/ReleasesPage'
 import { ReleaseDetailPage } from '@/pages/ReleaseDetailPage'
 import { TasksPage } from '@/pages/TasksPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { Loader2 } from 'lucide-react'
 
 const ProtectedRoute: React.FC = () => {
@@ -36,6 +37,7 @@ const App: React.FC = () => {
         <Route path="/releases" element={<ReleasesPage />} />
         <Route path="/releases/:id" element={<ReleaseDetailPage />} />
         <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

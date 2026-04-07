@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.DTOs.Common;
+using ProjectManagement.DTOs.Jira;
 using ProjectManagement.DTOs.Task;
 using ProjectManagement.Enums;
 using ProjectManagement.Exceptions;
@@ -102,6 +103,32 @@ public class TasksController : ControllerBase
     {
         await _taskService.DeleteAsync(id);
         return NoContent();
+    }
+
+    // ── Jira endpoints ────────────────────────────────────────────────────────
+
+    [HttpPatch("{id:int}/jira/link")]
+    [Authorize(Roles = "PM")]
+    public async Task<IActionResult> LinkJiraIssue(int id, [FromBody] LinkJiraIssueDto dto)
+    {
+        var updated = await _taskService.LinkJiraIssueAsync(id, dto.JiraIssueKey);
+        return Ok(updated);
+    }
+
+    [HttpDelete("{id:int}/jira/link")]
+    [Authorize(Roles = "PM")]
+    public async Task<IActionResult> UnlinkJiraIssue(int id)
+    {
+        var updated = await _taskService.UnlinkJiraIssueAsync(id);
+        return Ok(updated);
+    }
+
+    [HttpPost("{id:int}/jira/create-issue")]
+    [Authorize(Roles = "PM")]
+    public async Task<IActionResult> CreateJiraIssueForTask(int id, [FromBody] CreateJiraIssueDto dto)
+    {
+        var updated = await _taskService.CreateJiraIssueForTaskAsync(id, dto);
+        return Ok(updated);
     }
 
     private int GetCurrentUserId()

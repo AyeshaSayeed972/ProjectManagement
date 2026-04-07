@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Package, CheckSquare, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, CheckSquare, LogOut, Settings } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 const navItems = [
@@ -54,6 +54,21 @@ export const Sidebar: React.FC = () => {
             {label}
           </NavLink>
         ))}
+        {user?.role === 'PM' && (
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-400 hover:bg-slate-700 hover:text-slate-100'
+              }`
+            }
+          >
+            <Settings className="w-5 h-5 shrink-0" />
+            Settings
+          </NavLink>
+        )}
       </nav>
 
       {/* User info & logout */}

@@ -19,6 +19,9 @@ public class TaskConfiguration : IEntityTypeConfiguration<Entities.Task>
         builder.Property(t => t.Remarks)
                .HasMaxLength(1000);
 
+        builder.Property(t => t.JiraIssueKey)
+               .HasMaxLength(50);
+
         builder.Property(t => t.Status)
                .IsRequired()
                .HasConversion<string>();

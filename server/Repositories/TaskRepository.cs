@@ -68,6 +68,7 @@ public class TaskRepository : ITaskRepository
                 AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.Username,
                 PRLink               = t.PRLink,
                 Remarks              = t.Remarks,
+                JiraIssueKey         = t.JiraIssueKey,
                 Status               = t.Status,
                 CreatedAt            = t.CreatedAt
             })
@@ -116,6 +117,7 @@ public class TaskRepository : ITaskRepository
                 AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.Username,
                 PRLink               = t.PRLink,
                 Remarks              = t.Remarks,
+                JiraIssueKey         = t.JiraIssueKey,
                 Status               = t.Status,
                 CreatedAt            = t.CreatedAt
             })

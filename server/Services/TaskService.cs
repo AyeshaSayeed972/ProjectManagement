@@ -1,4 +1,5 @@
 using ProjectManagement.DTOs.Common;
+using ProjectManagement.DTOs.Jira;
 using ProjectManagement.DTOs.Task;
 using ProjectManagement.Enums;
 using ProjectManagement.Exceptions;
@@ -13,15 +14,21 @@ public class TaskService : ITaskService
     private readonly ITaskRepository _taskRepository;
     private readonly IReleaseRepository _releaseRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IJiraService _jiraService;
+    private readonly ILogger<TaskService> _logger;
 
     public TaskService(
         ITaskRepository taskRepository,
         IReleaseRepository releaseRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        IJiraService jiraService,
+        ILogger<TaskService> logger)
     {
-        _taskRepository = taskRepository;
+        _taskRepository    = taskRepository;
         _releaseRepository = releaseRepository;
-        _userRepository = userRepository;
+        _userRepository    = userRepository;
+        _jiraService       = jiraService;
+        _logger            = logger;
     }
 
     public async Task<PagedResult<TaskResponseDto>> GetAllAsync(int pageNumber, int pageSize, TaskStatus? status = null, string? assignedToUsername = null, string? userRole = null)
@@ -189,19 +196,108 @@ public class TaskService : ITaskService
         await _taskRepository.DeleteAsync(task);
     }
 
+    // ── Jira integration ──────────────────────────────────────────────────────
+
+    public async Task<TaskResponseDto> LinkJiraIssueAsync(int taskId, string issueKey)
+    {
+        var task = await _taskRepository.GetByIdAsync(taskId)
+            ?? throw new NotFoundException($"Task with id {taskId} not found.");
+
+        // Validate the issue exists in Jira before linking
+        await _jiraService.GetIssueAsync(issueKey);
+
+        task.JiraIssueKey = issueKey;
+        await _taskRepository.UpdateAsync(task);
+
+        var updated = await _taskRepository.GetByIdAsync(taskId);
+        return MapToDto(updated!);
+    }
+
+    public async Task<TaskResponseDto> UnlinkJiraIssueAsync(int taskId)
+    {
+        var task = await _taskRepository.GetByIdAsync(taskId)
+            ?? throw new NotFoundException($"Task with id {taskId} not found.");
+
+        task.JiraIssueKey = null;
+        await _taskRepository.UpdateAsync(task);
+
+        var updated = await _taskRepository.GetByIdAsync(taskId);
+        return MapToDto(updated!);
+    }
+
+    public async Task<TaskResponseDto> CreateJiraIssueForTaskAsync(int taskId, CreateJiraIssueDto dto)
+    {
+        var task = await _taskRepository.GetByIdAsync(taskId)
+            ?? throw new NotFoundException($"Task with id {taskId} not found.");
+
+        if (!string.IsNullOrEmpty(task.JiraIssueKey))
+            throw new ConflictException($"Task is already linked to Jira issue {task.JiraIssueKey}.");
+
+        if (string.IsNullOrWhiteSpace(dto.ProjectKey))
+            throw new BadRequestException("ProjectKey is required to create a Jira issue.");
+
+        var issueKey = await _jiraService.CreateIssueAsync(
+            dto.ProjectKey,
+            task.Title,
+            dto.IssueType ?? "Task",
+            dto.Description);
+
+        task.JiraIssueKey = issueKey;
+        await _taskRepository.UpdateAsync(task);
+
+        var updated = await _taskRepository.GetByIdAsync(taskId);
+        return MapToDto(updated!);
+    }
+
+    public async Task<TaskResponseDto> ImportFromJiraAsync(JiraImportDto dto)
+    {
+        if (await _releaseRepository.GetByIdAsync(dto.ReleaseId) is null)
+            throw new NotFoundException($"Release with id {dto.ReleaseId} not found.");
+
+        var devUser = await _userRepository.GetByIdAsync(dto.AssignedToUserId)
+            ?? throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
+        if (devUser.Role != UserRole.Developer)
+            throw new BadRequestException("AssignedToUserId must refer to a Developer.");
+
+        var qaUser = await _userRepository.GetByIdAsync(dto.AssignedToQAUserId)
+            ?? throw new NotFoundException($"QA user with id {dto.AssignedToQAUserId} not found.");
+        if (qaUser.Role != UserRole.QA)
+            throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
+
+        var jiraIssue = await _jiraService.GetIssueAsync(dto.JiraIssueKey);
+
+        var task = new Entities.Task
+        {
+            Title               = jiraIssue.Summary,
+            JiraIssueKey        = dto.JiraIssueKey,
+            ReleaseId           = dto.ReleaseId,
+            AssignedToUserId    = dto.AssignedToUserId,
+            AssignedToQAUserId  = dto.AssignedToQAUserId,
+            Status              = TaskStatus.Pending,
+            CreatedAt           = DateTime.UtcNow
+        };
+
+        var created = await _taskRepository.AddAsync(task);
+        var full    = await _taskRepository.GetByIdAsync(created.Id);
+        return MapToDto(full!);
+    }
+
+    // ── Mapping ───────────────────────────────────────────────────────────────
+
     private static TaskResponseDto MapToDto(Entities.Task task) => new()
     {
-        Id = task.Id,
-        Title = task.Title,
-        ReleaseId = task.ReleaseId,
-        ReleaseTitle = task.Release?.Title ?? string.Empty,
-        AssignedToUserId = task.AssignedToUserId,
-        AssignedToUsername = task.AssignedToUser?.Username ?? string.Empty,
-        AssignedToQAUserId = task.AssignedToQAUserId,
+        Id                   = task.Id,
+        Title                = task.Title,
+        ReleaseId            = task.ReleaseId,
+        ReleaseTitle         = task.Release?.Title ?? string.Empty,
+        AssignedToUserId     = task.AssignedToUserId,
+        AssignedToUsername   = task.AssignedToUser?.Username ?? string.Empty,
+        AssignedToQAUserId   = task.AssignedToQAUserId,
         AssignedToQAUsername = task.AssignedToQAUser?.Username,
-        PRLink = task.PRLink,
-        Remarks = task.Remarks,
-        Status = task.Status,
-        CreatedAt = task.CreatedAt
+        PRLink               = task.PRLink,
+        Remarks              = task.Remarks,
+        JiraIssueKey         = task.JiraIssueKey,
+        Status               = task.Status,
+        CreatedAt            = task.CreatedAt
     };
 }

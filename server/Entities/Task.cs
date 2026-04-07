@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using ProjectManagement.Enums;
 using TaskStatus = ProjectManagement.Enums.TaskStatus;
 
@@ -9,10 +10,13 @@ public class Task
     public string Title { get; set; } = string.Empty;
     public string? PRLink { get; set; }
     public string? Remarks { get; set; }
+    public string? JiraIssueKey { get; set; }
     public TaskStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
 
+    [ForeignKey("Release")]
     public int ReleaseId { get; set; }
+
     public Release Release { get; set; } = null!;
 
     public int AssignedToUserId { get; set; }

@@ -89,6 +89,7 @@ export interface TaskResponse {
   assignedToQAUsername: string | null
   prLink: string | null
   remarks: string | null
+  jiraIssueKey: string | null
   status: TaskStatus
   createdAt: string
 }
@@ -113,4 +114,47 @@ export interface UpdateDevFieldsDto {
 
 export interface UpdateQAFieldsDto {
   remarks?: string
+}
+
+// ── Jira ─────────────────────────────────────────────────────────────────────
+
+export interface JiraSettingsResponse {
+  baseUrl: string
+  email: string
+  isConfigured: boolean
+}
+
+export interface UpsertJiraSettingsDto {
+  baseUrl: string
+  email: string
+  apiToken: string
+}
+
+export interface JiraIssueResponse {
+  key: string
+  summary: string
+  status: string
+  assignee: string | null
+  issueType: string | null
+  browseUrl: string
+}
+
+export interface JiraSearchResult {
+  issues: JiraIssueResponse[]
+  total: number
+  startAt: number
+  maxResults: number
+}
+
+export interface JiraImportDto {
+  jiraIssueKey: string
+  releaseId: number
+  assignedToUserId: number
+  assignedToQAUserId: number
+}
+
+export interface CreateJiraIssueRequest {
+  projectKey: string
+  issueType?: string
+  description?: string
 }

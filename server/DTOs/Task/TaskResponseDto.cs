@@ -14,6 +14,7 @@ public class TaskResponseDto
     public string? AssignedToQAUsername { get; set; }
     public string? PRLink { get; set; }
     public string? Remarks { get; set; }
+    public string? JiraIssueKey { get; set; }
     public TaskStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
 }

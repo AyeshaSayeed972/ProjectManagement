@@ -22,8 +22,6 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            // Expected application errors are business conditions, not bugs — log at Warning.
-            // Everything else is unexpected and should be investigated — log at Error.
             if (ex is AppException appException)
                 _logger.LogWarning("Application exception {StatusCode}: {Message}",
                     appException.StatusCode, appException.Message);
