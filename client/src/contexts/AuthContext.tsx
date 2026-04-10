@@ -43,11 +43,13 @@ export const AuthContext = createContext<AuthContextValue | null>(null)
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState)
 
-  // Use bare axios (no interceptors) so a missing/expired session on first load
-  // does not trigger the 401 redirect loop before the router has mounted.
+  // On mount: fetch antiforgery token, then check existing session
   useEffect(() => {
     axios
-      .get<{ username: string; role: UserRole }>('/api/auth/me', { withCredentials: true })
+      .get('/api/auth/antiforgery', { withCredentials: true })
+      .then(() =>
+        axios.get<{ username: string; role: UserRole }>('/api/auth/me', { withCredentials: true })
+      )
       .then((res) => {
         dispatch({ type: 'LOGIN_SUCCESS', payload: { username: res.data.username, role: res.data.role } })
       })

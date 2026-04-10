@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Entities;
 using ProjectManagement.Enums;
 using TaskStatus = ProjectManagement.Enums.TaskStatus;
@@ -6,43 +8,40 @@ namespace ProjectManagement.Data;
 
 public static class DbSeeder
 {
-    public static void Seed(AppDbContext context)
+    public static async System.Threading.Tasks.Task SeedAsync(
+        UserManager<User> userManager,
+        RoleManager<IdentityRole<int>> roleManager,
+        AppDbContext context)
     {
-        if (context.Users.Any())
+        if (await userManager.Users.AnyAsync())
             return;
- var users = new List<User>
-{
-    new User
-    {
-        Username = "pm_user1",
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword("pm_pass1"),
-        Role = UserRole.PM
-    }
-};
 
-for (int i = 1; i <= 15; i++)
-{
-    users.Add(new User
-    {
-        Username = $"dev_user{i}",
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword($"dev_pass{i}"),
-        Role = UserRole.Developer
-    });
-}
+        // ── Roles ─────────────────────────────────────────────────────────────
+        foreach (var role in new[] { "PM", "Developer", "QA" })
+            await roleManager.CreateAsync(new IdentityRole<int>(role));
 
-// Add QA users
-for (int i = 1; i <= 15; i++)
-{
-    users.Add(new User
-    {
-        Username = $"qa_user{i}",
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword($"qa_pass{i}"),
-        Role = UserRole.QA
-    });
-}
+        // ── Users ─────────────────────────────────────────────────────────────
+        var pmUser = new User { UserName = "pm_user1" };
+        await userManager.CreateAsync(pmUser, "pm_pass1");
+        await userManager.AddToRoleAsync(pmUser, "PM");
 
-context.Users.AddRange(users);
-context.SaveChanges();
+        var devUsers = new List<User>();
+        for (int i = 1; i <= 15; i++)
+        {
+            var dev = new User { UserName = $"dev_user{i}" };
+            await userManager.CreateAsync(dev, $"dev_pass{i}");
+            await userManager.AddToRoleAsync(dev, "Developer");
+            devUsers.Add(dev);
+        }
+
+        var qaUsers = new List<User>();
+        for (int i = 1; i <= 15; i++)
+        {
+            var qa = new User { UserName = $"qa_user{i}" };
+            await userManager.CreateAsync(qa, $"qa_pass{i}");
+            await userManager.AddToRoleAsync(qa, "QA");
+            qaUsers.Add(qa);
+        }
 
         // ── Releases (30 total) ────────────────────────────────────────────────
         var baseDate = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -87,12 +86,9 @@ context.SaveChanges();
         }
 
         context.Releases.AddRange(releases);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
 
         // ── Tasks (30 total spread across first 10 releases) ──────────────────
-        var devUsers = users.Where(u => u.Role == UserRole.Developer).ToList();
-        var qaUsers  = users.Where(u => u.Role == UserRole.QA).ToList();
-
         var taskTitles = new[]
         {
             "Setup project scaffolding", "Configure CI/CD pipeline", "Design DB schema",
@@ -107,8 +103,6 @@ context.SaveChanges();
             "Write deployment runbook", "Set up monitoring alerts", "Final QA sign-off"
         };
 
-        // Dev handles: Pending → InProgress → PRRaised → Merged
-        // QA  handles: Merged → QAApproved → Deployed → Done
         var taskStatuses = new[]
         {
             TaskStatus.Done,       TaskStatus.Done,       TaskStatus.Done,       TaskStatus.Done,
@@ -171,20 +165,6 @@ context.SaveChanges();
         }
 
         context.Tasks.AddRange(tasks);
-        context.SaveChanges();
-
-        // ── Revoked Tokens (6 entries) ─────────────────────────────────────────
-        var revokedTokens = new List<RevokedToken>
-        {
-            new() { Jti = Guid.NewGuid().ToString(), ExpiresAt = DateTime.UtcNow.AddDays(-1) },
-            new() { Jti = Guid.NewGuid().ToString(), ExpiresAt = DateTime.UtcNow.AddDays(-2) },
-            new() { Jti = Guid.NewGuid().ToString(), ExpiresAt = DateTime.UtcNow.AddDays(-3) },
-            new() { Jti = Guid.NewGuid().ToString(), ExpiresAt = DateTime.UtcNow.AddDays(-5) },
-            new() { Jti = Guid.NewGuid().ToString(), ExpiresAt = DateTime.UtcNow.AddDays(-7) },
-            new() { Jti = Guid.NewGuid().ToString(), ExpiresAt = DateTime.UtcNow.AddDays(-10) }
-        };
-
-        context.RevokedTokens.AddRange(revokedTokens);
-        context.SaveChanges();
+        await context.SaveChangesAsync();
     }
 }

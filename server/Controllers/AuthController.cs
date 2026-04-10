@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.DTOs.Auth;
-using ProjectManagement.Exceptions;
+using ProjectManagement.Entities;
 using ProjectManagement.Services.Interfaces;
 using System.Security.Claims;
 
@@ -12,29 +14,44 @@ namespace ProjectManagement.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly SignInManager<User> _signInManager;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, SignInManager<User> signInManager)
     {
-        _authService = authService;
+        _authService   = authService;
+        _signInManager = signInManager;
+    }
+
+    [HttpGet("antiforgery")]
+    [AllowAnonymous]
+    public IActionResult GetAntiforgery([FromServices] IAntiforgery antiforgery)
+    {
+        var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+        Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions
+        {
+            HttpOnly = false,
+            SameSite = SameSiteMode.Lax
+        });
+        return NoContent();
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
+    [AllowAnonymous]
+    public async Task<IActionResult> Login(
+        [FromBody] LoginRequestDto dto,
+        [FromServices] IAntiforgery antiforgery)
     {
         var result = await _authService.LoginAsync(dto);
-        SetAuthCookies(result.AccessToken, result.RefreshToken);
-        return Ok(new { username = result.Username, role = result.Role.ToString() });
-    }
 
-    [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh()
-    {
-        var refreshToken = Request.Cookies["refresh_token"];
-        if (string.IsNullOrEmpty(refreshToken))
-            throw new ForbiddenException("Refresh token is missing.");
+        // Regenerate antiforgery token bound to the newly authenticated user,
+        // replacing the anonymous token the client held before login.
+        var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+        Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions
+        {
+            HttpOnly = false,
+            SameSite = SameSiteMode.Lax
+        });
 
-        var result = await _authService.RefreshAsync(refreshToken);
-        SetAuthCookies(result.AccessToken, result.RefreshToken);
         return Ok(new { username = result.Username, role = result.Role.ToString() });
     }
 
@@ -42,14 +59,7 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Logout()
     {
-        var accessToken  = Request.Cookies["access_token"]  ?? string.Empty;
-        var refreshToken = Request.Cookies["refresh_token"] ?? string.Empty;
-
-        await _authService.LogoutAsync(accessToken, refreshToken);
-
-        Response.Cookies.Delete("access_token");
-        Response.Cookies.Delete("refresh_token", new CookieOptions { Path = "/api/auth" });
-
+        await _signInManager.SignOutAsync();
         return Ok(new { success = true, message = "Logged out successfully." });
     }
 
@@ -60,25 +70,5 @@ public class AuthController : ControllerBase
         var username = User.FindFirst(ClaimTypes.Name)?.Value;
         var role     = User.FindFirst(ClaimTypes.Role)?.Value;
         return Ok(new { username, role });
-    }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    private void SetAuthCookies(string accessToken, string refreshToken)
-    {
-        Response.Cookies.Append("access_token", accessToken, new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
-            Expires  = DateTimeOffset.UtcNow.AddMinutes(15)
-        });
-
-        Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
-        {
-            HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
-            Expires  = DateTimeOffset.UtcNow.AddDays(7),
-            Path     = "/api/auth"   // only sent to the auth endpoints
-        });
     }
 }

@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Identity;
 using ProjectManagement.DTOs.Common;
+using Task = System.Threading.Tasks.Task;
 using ProjectManagement.DTOs.Jira;
 using ProjectManagement.DTOs.Task;
+using ProjectManagement.Entities;
 using ProjectManagement.Enums;
 using ProjectManagement.Exceptions;
 using ProjectManagement.Repositories.Interfaces;
@@ -14,6 +17,7 @@ public class TaskService : ITaskService
     private readonly ITaskRepository _taskRepository;
     private readonly IReleaseRepository _releaseRepository;
     private readonly IUserRepository _userRepository;
+    private readonly UserManager<User> _userManager;
     private readonly IJiraService _jiraService;
     private readonly ILogger<TaskService> _logger;
 
@@ -21,12 +25,14 @@ public class TaskService : ITaskService
         ITaskRepository taskRepository,
         IReleaseRepository releaseRepository,
         IUserRepository userRepository,
+        UserManager<User> userManager,
         IJiraService jiraService,
         ILogger<TaskService> logger)
     {
         _taskRepository    = taskRepository;
         _releaseRepository = releaseRepository;
         _userRepository    = userRepository;
+        _userManager       = userManager;
         _jiraService       = jiraService;
         _logger            = logger;
     }
@@ -68,12 +74,12 @@ public class TaskService : ITaskService
 
         var devUser = await _userRepository.GetByIdAsync(dto.AssignedToUserId)
             ?? throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
-        if (devUser.Role != UserRole.Developer)
+        if (!await _userManager.IsInRoleAsync(devUser, nameof(UserRole.Developer)))
             throw new BadRequestException("AssignedToUserId must refer to a Developer.");
 
         var qaUser = await _userRepository.GetByIdAsync(dto.AssignedToQAUserId)
             ?? throw new NotFoundException($"QA user with id {dto.AssignedToQAUserId} not found.");
-        if (qaUser.Role != UserRole.QA)
+        if (!await _userManager.IsInRoleAsync(qaUser, nameof(UserRole.QA)))
             throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
 
         var task = new Entities.Task
@@ -98,12 +104,12 @@ public class TaskService : ITaskService
 
         var devUser = await _userRepository.GetByIdAsync(dto.AssignedToUserId)
             ?? throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
-        if (devUser.Role != UserRole.Developer)
+        if (!await _userManager.IsInRoleAsync(devUser, nameof(UserRole.Developer)))
             throw new BadRequestException("AssignedToUserId must refer to a Developer.");
 
         var qaUser = await _userRepository.GetByIdAsync(dto.AssignedToQAUserId)
             ?? throw new NotFoundException($"QA user with id {dto.AssignedToQAUserId} not found.");
-        if (qaUser.Role != UserRole.QA)
+        if (!await _userManager.IsInRoleAsync(qaUser, nameof(UserRole.QA)))
             throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
 
         task.Title = dto.Title;
@@ -256,12 +262,12 @@ public class TaskService : ITaskService
 
         var devUser = await _userRepository.GetByIdAsync(dto.AssignedToUserId)
             ?? throw new NotFoundException($"User with id {dto.AssignedToUserId} not found.");
-        if (devUser.Role != UserRole.Developer)
+        if (!await _userManager.IsInRoleAsync(devUser, nameof(UserRole.Developer)))
             throw new BadRequestException("AssignedToUserId must refer to a Developer.");
 
         var qaUser = await _userRepository.GetByIdAsync(dto.AssignedToQAUserId)
             ?? throw new NotFoundException($"QA user with id {dto.AssignedToQAUserId} not found.");
-        if (qaUser.Role != UserRole.QA)
+        if (!await _userManager.IsInRoleAsync(qaUser, nameof(UserRole.QA)))
             throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
 
         var jiraIssue = await _jiraService.GetIssueAsync(dto.JiraIssueKey);
@@ -291,9 +297,9 @@ public class TaskService : ITaskService
         ReleaseId            = task.ReleaseId,
         ReleaseTitle         = task.Release?.Title ?? string.Empty,
         AssignedToUserId     = task.AssignedToUserId,
-        AssignedToUsername   = task.AssignedToUser?.Username ?? string.Empty,
+        AssignedToUsername   = task.AssignedToUser?.UserName ?? string.Empty,
         AssignedToQAUserId   = task.AssignedToQAUserId,
-        AssignedToQAUsername = task.AssignedToQAUser?.Username,
+        AssignedToQAUsername = task.AssignedToQAUser?.UserName,
         PRLink               = task.PRLink,
         Remarks              = task.Remarks,
         JiraIssueKey         = task.JiraIssueKey,

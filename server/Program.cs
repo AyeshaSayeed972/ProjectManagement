@@ -1,13 +1,11 @@
-using System.Security.Claims;
-using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using ProjectManagement.Auth;
 using ProjectManagement.Data;
+using ProjectManagement.Entities;
 using ProjectManagement.Middleware;
 using ProjectManagement.Repositories;
 using ProjectManagement.Repositories.Interfaces;
@@ -15,6 +13,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
+var isDev   = builder.Environment.IsDevelopment();
 
 // Controllers + JSON enum string support
 builder.Services.AddControllers()
@@ -22,18 +21,16 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(
             new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
-// Swagger with Bearer auth support
+// Swagger with cookie auth support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    options.AddSecurityDefinition("CookieAuth", new OpenApiSecurityScheme
     {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter your JWT token. Example: eyJhbGci..."
+        Name = "auth_session",
+        Type = SecuritySchemeType.ApiKey,
+        In   = ParameterLocation.Cookie,
+        Description = "Identity session cookie (set automatically on login)"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -41,7 +38,7 @@ builder.Services.AddSwaggerGen(options =>
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "CookieAuth" }
             },
             Array.Empty<string>()
         }
@@ -52,62 +49,44 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// JWT settings
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
-var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
+// ASP.NET Core Identity (includes SignInManager)
+builder.Services.AddIdentity<User, IdentityRole<int>>(options =>
+{
+    options.Password.RequireDigit           = false;
+    options.Password.RequiredLength         = 6;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase       = false;
+})
+.AddEntityFrameworkStores<AppDbContext>();
 
-// JWT Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+// Application cookie — Identity cookie session
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.Name        = "auth_session";
+    options.Cookie.HttpOnly    = true;
+    options.Cookie.SameSite    = isDev ? SameSiteMode.Lax : SameSiteMode.None;
+    options.Cookie.SecurePolicy = isDev ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.ExpireTimeSpan     = TimeSpan.FromDays(7);
+    options.SlidingExpiration  = true;
+
+    // Return 401/403 JSON for API instead of redirecting to login page
+    options.Events.OnRedirectToLogin = ctx =>
     {
-        // Prevent standard JWT short claim names (sub, name, role) from being
-        // remapped to long Microsoft URI-based ClaimTypes names
-        options.MapInboundClaims = false;
+        ctx.Response.StatusCode = 401;
+        return System.Threading.Tasks.Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = ctx =>
+    {
+        ctx.Response.StatusCode = 403;
+        return System.Threading.Tasks.Task.CompletedTask;
+    };
+});
 
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            RequireExpirationTime = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret)),
-            // Keep role and name resolution working with our ClaimTypes-based tokens
-            RoleClaimType = ClaimTypes.Role,
-            NameClaimType = ClaimTypes.Name
-        };
-
-        options.Events = new JwtBearerEvents
-        {
-            // Read JWT from HttpOnly cookie instead of Authorization header
-            OnMessageReceived = context =>
-            {
-                context.Token = context.Request.Cookies["access_token"];
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = async context =>
-            {
-                var jti = context.Principal?.FindFirst(
-                    System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
-
-                if (string.IsNullOrEmpty(jti))
-                {
-                    context.Fail("Token is missing jti claim.");
-                    return;
-                }
-
-                var revokedTokenRepo = context.HttpContext.RequestServices
-                    .GetRequiredService<IRevokedTokenRepository>();
-
-                if (await revokedTokenRepo.IsRevokedAsync(jti))
-                    context.Fail("Token has been revoked.");
-            }
-        };
-    });
-
-builder.Services.AddAuthorization();
+// Antiforgery — validates X-XSRF-TOKEN header on state-changing requests
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-XSRF-TOKEN";
+});
 
 // CORS for Vite dev server
 builder.Services.AddCors(options =>
@@ -129,12 +108,9 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IReleaseRepository, ReleaseRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
-builder.Services.AddScoped<IRevokedTokenRepository, RevokedTokenRepository>();
-builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IJiraSettingsRepository, JiraSettingsRepository>();
 
 // Services
-builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IReleaseService, ReleaseService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
@@ -160,14 +136,34 @@ app.UseHttpsRedirection();
 app.UseCors("ViteDev");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Antiforgery validation for all state-changing requests
+app.Use(async (context, next) =>
+{
+    if (!HttpMethods.IsGet(context.Request.Method) &&
+        !HttpMethods.IsHead(context.Request.Method) &&
+        !HttpMethods.IsOptions(context.Request.Method))
+    {
+        // Skip antiforgery on the login endpoint (user is not yet authenticated)
+        var path = context.Request.Path.Value ?? string.Empty;
+        if (!path.EndsWith("/auth/login", StringComparison.OrdinalIgnoreCase))
+        {
+            var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
+            await antiforgery.ValidateRequestAsync(context);
+        }
+    }
+    await next();
+});
+
 app.MapControllers();
 
 // Apply migrations and seed data on startup
 using var scope = app.Services.CreateScope();
 
-var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+var db          = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<int>>>();
 db.Database.Migrate();
-DbSeeder.Seed(db);
+await DbSeeder.SeedAsync(userManager, roleManager, db);
 
-
-app.Run();
+await app.RunAsync();

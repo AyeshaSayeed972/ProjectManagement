@@ -22,9 +22,6 @@ public class UserRepository : IUserRepository
     public async Task<bool> ExistsAsync(int id)
         => await _context.Users.AnyAsync(u => u.Id == id);
 
-    public async Task<User?> GetByUsernameAsync(string username)
-        => await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Username == username);
-
     public async Task<(IEnumerable<User> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize)
     {
         var totalCount = await _context.Users.CountAsync();
@@ -39,12 +36,26 @@ public class UserRepository : IUserRepository
 
     public async Task<(IEnumerable<User> Items, int TotalCount)> GetFilteredPagedAsync(int pageNumber, int pageSize, UserRole? role)
     {
-        var query = _context.Users.AsNoTracking();
+        IQueryable<User> query;
+
         if (role.HasValue)
-            query = query.Where(u => u.Role == role.Value);
+        {
+            var roleName = role.Value.ToString();
+            query = _context.Users
+                .Join(_context.UserRoles, u => u.Id, ur => ur.UserId, (u, ur) => new { u, ur })
+                .Join(_context.Roles, x => x.ur.RoleId, r => r.Id, (x, r) => new { x.u, r.Name })
+                .Where(x => x.Name == roleName)
+                .Select(x => x.u)
+                .AsNoTracking();
+        }
+        else
+        {
+            query = _context.Users.AsNoTracking();
+        }
+
         var totalCount = await query.CountAsync();
         var items = await query
-            .OrderBy(u => u.Username)
+            .OrderBy(u => u.UserName)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

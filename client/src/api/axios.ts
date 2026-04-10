@@ -2,52 +2,26 @@ import axios from 'axios'
 
 const axiosInstance = axios.create({
   baseURL: '/api',
-  withCredentials: true, // send HttpOnly cookies on every request
+  withCredentials: true, // send auth_session cookie on every request
 })
 
-// Handle 401 — attempt silent token refresh via cookie, queue concurrent failures
-let isRefreshing = false
-let failedQueue: Array<{ resolve: () => void; reject: (err: unknown) => void }> = []
+// Attach XSRF-TOKEN cookie value as X-XSRF-TOKEN header on every request
+axiosInstance.interceptors.request.use((config) => {
+  const token = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('XSRF-TOKEN='))
+    ?.split('=')[1]
+  if (token) config.headers['X-XSRF-TOKEN'] = decodeURIComponent(token)
+  return config
+})
 
-const processQueue = (error: unknown) => {
-  failedQueue.forEach((prom) => {
-    if (error) prom.reject(error)
-    else prom.resolve()
-  })
-  failedQueue = []
-}
-
+// On 401, redirect to login
 axiosInstance.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config as typeof error.config & { _retry?: boolean }
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        return new Promise<void>((resolve, reject) => {
-          failedQueue.push({ resolve, reject })
-        })
-          .then(() => axiosInstance(originalRequest))
-          .catch((err) => Promise.reject(err))
-      }
-
-      originalRequest._retry = true
-      isRefreshing = true
-
-      try {
-        // Browser automatically sends the refresh_token HttpOnly cookie
-        await axios.post('/api/auth/refresh', null, { withCredentials: true })
-        processQueue(null)
-        return axiosInstance(originalRequest)
-      } catch (refreshError) {
-        processQueue(refreshError)
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
-      }
+  (error) => {
+    if (error.response?.status === 401) {
+      window.location.href = '/login'
     }
-
     return Promise.reject(error)
   },
 )
