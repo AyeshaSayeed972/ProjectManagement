@@ -39,13 +39,13 @@ public class TaskRepository : ITaskRepository
     {
         query = query.Where(t =>
             t.AssignedToQAUser != null &&
-            t.AssignedToQAUser.Username == assignedToUsername
+            t.AssignedToQAUser.UserName == assignedToUsername
         );
     }
     else
     {
         query = query.Where(t =>
-            t.AssignedToUser.Username == assignedToUsername
+            t.AssignedToUser.UserName! == assignedToUsername
         );
     }
 }
@@ -63,9 +63,9 @@ public class TaskRepository : ITaskRepository
                 ReleaseId            = t.ReleaseId,
                 ReleaseTitle         = t.Release.Title,
                 AssignedToUserId     = t.AssignedToUserId,
-                AssignedToUsername   = t.AssignedToUser.Username,
+                AssignedToUsername   = t.AssignedToUser.UserName!,
                 AssignedToQAUserId   = t.AssignedToQAUserId,
-                AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.Username,
+                AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.UserName,
                 PRLink               = t.PRLink,
                 Remarks              = t.Remarks,
                 JiraIssueKey         = t.JiraIssueKey,
@@ -88,13 +88,13 @@ public class TaskRepository : ITaskRepository
     {
         query = query.Where(t =>
             t.AssignedToQAUser != null &&
-            t.AssignedToQAUser.Username == assignedToUsername
+            t.AssignedToQAUser.UserName == assignedToUsername
         );
     }
     else
     {
         query = query.Where(t =>
-            t.AssignedToUser.Username == assignedToUsername
+            t.AssignedToUser.UserName! == assignedToUsername
         );
     }
 }
@@ -112,9 +112,9 @@ public class TaskRepository : ITaskRepository
                 ReleaseId            = t.ReleaseId,
                 ReleaseTitle         = t.Release.Title,
                 AssignedToUserId     = t.AssignedToUserId,
-                AssignedToUsername   = t.AssignedToUser.Username,
+                AssignedToUsername   = t.AssignedToUser.UserName!,
                 AssignedToQAUserId   = t.AssignedToQAUserId,
-                AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.Username,
+                AssignedToQAUsername = t.AssignedToQAUser == null ? (string?)null : t.AssignedToQAUser.UserName,
                 PRLink               = t.PRLink,
                 Remarks              = t.Remarks,
                 JiraIssueKey         = t.JiraIssueKey,

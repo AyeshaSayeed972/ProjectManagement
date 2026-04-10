@@ -1,14 +1,9 @@
-using ProjectManagement.Enums;
+using Microsoft.AspNetCore.Identity;
 
 namespace ProjectManagement.Entities;
 
-public class User
+public class User : IdentityUser<int>
 {
-    public int Id { get; set; }
-    public string Username { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
-    public UserRole Role { get; set; }
-
     public ICollection<Task> AssignedTasks { get; set; } = new List<Task>();
     public ICollection<Task> QAAssignedTasks { get; set; } = new List<Task>();
 }

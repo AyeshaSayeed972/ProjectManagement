@@ -39,7 +39,7 @@ public class ReleaseRepository : IReleaseRepository
                 {
                     Id                 = t.Id,
                     Title              = t.Title,
-                    AssignedToUsername = t.AssignedToUser.Username,
+                    AssignedToUsername = t.AssignedToUser.UserName!,
                     Status             = t.Status
                 }).ToList()
             })
@@ -68,7 +68,7 @@ public class ReleaseRepository : IReleaseRepository
                 {
                     Id                 = t.Id,
                     Title              = t.Title,
-                    AssignedToUsername = t.AssignedToUser.Username,
+                    AssignedToUsername = t.AssignedToUser.UserName!,
                     Status             = t.Status
                 }).ToList()
             })
