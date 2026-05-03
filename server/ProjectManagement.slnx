@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ProjectManagement.BLL/ProjectManagement.BLL.csproj" />
+  <Project Path="ProjectManagement.DAL/ProjectManagement.DAL.csproj" />
+  <Project Path="ProjectManagement.Presentation/ProjectManagement.Presentation.csproj" />
+</Solution>
