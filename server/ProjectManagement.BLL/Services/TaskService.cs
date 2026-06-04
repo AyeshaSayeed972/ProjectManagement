@@ -1,16 +1,10 @@
 using Microsoft.AspNetCore.Identity;
-using ProjectManagement.DTOs.Common;
+using Microsoft.Extensions.Logging;
+using ProjectManagement.DAL;
 using Task = System.Threading.Tasks.Task;
-using ProjectManagement.DTOs.Jira;
-using ProjectManagement.DTOs.Task;
-using ProjectManagement.Entities;
-using ProjectManagement.Enums;
-using ProjectManagement.Exceptions;
-using ProjectManagement.Repositories.Interfaces;
-using ProjectManagement.Services.Interfaces;
-using TaskStatus = ProjectManagement.Enums.TaskStatus;
+using TaskStatus = ProjectManagement.DAL.TaskStatus;
 
-namespace ProjectManagement.Services;
+namespace ProjectManagement.BLL;
 
 public class TaskService : ITaskService
 {
@@ -37,37 +31,41 @@ public class TaskService : ITaskService
         _logger            = logger;
     }
 
-    public async Task<PagedResult<TaskResponseDto>> GetAllAsync(int pageNumber, int pageSize, TaskStatus? status = null, string? assignedToUsername = null, string? userRole = null)
+    public async System.Threading.Tasks.Task<PagedResult<TaskResponseDto>> GetAllAsync(
+        int pageNumber, int pageSize, TaskStatus? status = null,
+        string? assignedToUsername = null, string? userRole = null)
     {
         var (items, totalCount) = await _taskRepository.GetAllPagedAsync(pageNumber, pageSize, status, assignedToUsername, userRole);
         return new PagedResult<TaskResponseDto>
         {
-            Data = items,
+            Data       = items,
             TotalCount = totalCount,
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize   = pageSize
         };
     }
 
-    public async Task<PagedResult<TaskResponseDto>> GetByReleaseAsync(int releaseId, int pageNumber, int pageSize, TaskStatus? status = null, string? assignedToUsername = null, string? userRole = null)
+    public async System.Threading.Tasks.Task<PagedResult<TaskResponseDto>> GetByReleaseAsync(
+        int releaseId, int pageNumber, int pageSize, TaskStatus? status = null,
+        string? assignedToUsername = null, string? userRole = null)
     {
         var (items, totalCount) = await _taskRepository.GetByReleaseIdPagedAsync(releaseId, pageNumber, pageSize, status, assignedToUsername, userRole);
         return new PagedResult<TaskResponseDto>
         {
-            Data = items,
+            Data       = items,
             TotalCount = totalCount,
             PageNumber = pageNumber,
-            PageSize = pageSize
+            PageSize   = pageSize
         };
     }
 
-    public async Task<TaskResponseDto?> GetByIdAsync(int id)
+    public async System.Threading.Tasks.Task<TaskResponseDto?> GetByIdAsync(int id)
     {
         var task = await _taskRepository.GetByIdAsync(id);
         return task is null ? null : MapToDto(task);
     }
 
-    public async Task<TaskResponseDto> CreateAsync(CreateTaskDto dto)
+    public async System.Threading.Tasks.Task<TaskResponseDto> CreateAsync(CreateTaskDto dto)
     {
         if (await _releaseRepository.GetByIdAsync(dto.ReleaseId) is null)
             throw new NotFoundException($"Release with id {dto.ReleaseId} not found.");
@@ -82,22 +80,22 @@ public class TaskService : ITaskService
         if (!await _userManager.IsInRoleAsync(qaUser, nameof(UserRole.QA)))
             throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
 
-        var task = new Entities.Task
+        var task = new ProjectManagement.DAL.Task
         {
-            Title = dto.Title,
-            ReleaseId = dto.ReleaseId,
-            AssignedToUserId = dto.AssignedToUserId,
+            Title              = dto.Title,
+            ReleaseId          = dto.ReleaseId,
+            AssignedToUserId   = dto.AssignedToUserId,
             AssignedToQAUserId = dto.AssignedToQAUserId,
-            Status = TaskStatus.Pending,
-            CreatedAt = DateTime.UtcNow
+            Status             = TaskStatus.Pending,
+            CreatedAt          = DateTime.UtcNow
         };
 
         var created = await _taskRepository.AddAsync(task);
-        var full = await _taskRepository.GetByIdAsync(created.Id);
+        var full    = await _taskRepository.GetByIdAsync(created.Id);
         return MapToDto(full!);
     }
 
-    public async Task<TaskResponseDto> UpdateAsync(int id, UpdateTaskDto dto)
+    public async System.Threading.Tasks.Task<TaskResponseDto> UpdateAsync(int id, UpdateTaskDto dto)
     {
         var task = await _taskRepository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Task with id {id} not found.");
@@ -112,8 +110,8 @@ public class TaskService : ITaskService
         if (!await _userManager.IsInRoleAsync(qaUser, nameof(UserRole.QA)))
             throw new BadRequestException("AssignedToQAUserId must refer to a QA user.");
 
-        task.Title = dto.Title;
-        task.AssignedToUserId = dto.AssignedToUserId;
+        task.Title             = dto.Title;
+        task.AssignedToUserId  = dto.AssignedToUserId;
         task.AssignedToQAUserId = dto.AssignedToQAUserId;
 
         await _taskRepository.UpdateAsync(task);
@@ -122,11 +120,8 @@ public class TaskService : ITaskService
         return MapToDto(updated!);
     }
 
-    public async Task<TaskResponseDto> UpdateStatusAsync(
-        int id,
-        UpdateTaskStatusDto dto,
-        int requestingUserId,
-        UserRole requestingUserRole)
+    public async System.Threading.Tasks.Task<TaskResponseDto> UpdateStatusAsync(
+        int id, UpdateTaskStatusDto dto, int requestingUserId, UserRole requestingUserRole)
     {
         var task = await _taskRepository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Task with id {id} not found.");
@@ -161,7 +156,7 @@ public class TaskService : ITaskService
         return MapToDto(updated!);
     }
 
-    public async Task<TaskResponseDto> UpdateDevFieldsAsync(int id, UpdateDevFieldsDto dto, int requestingUserId)
+    public async System.Threading.Tasks.Task<TaskResponseDto> UpdateDevFieldsAsync(int id, UpdateDevFieldsDto dto, int requestingUserId)
     {
         var task = await _taskRepository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Task with id {id} not found.");
@@ -169,7 +164,7 @@ public class TaskService : ITaskService
         if (task.AssignedToUserId != requestingUserId)
             throw new ForbiddenException("You are not assigned to this task.");
 
-        task.PRLink = dto.PRLink;
+        task.PRLink  = dto.PRLink;
         task.Remarks = dto.Remarks;
 
         await _taskRepository.UpdateAsync(task);
@@ -178,7 +173,7 @@ public class TaskService : ITaskService
         return MapToDto(updated!);
     }
 
-    public async Task<TaskResponseDto> UpdateQAFieldsAsync(int id, UpdateQAFieldsDto dto, int requestingUserId)
+    public async System.Threading.Tasks.Task<TaskResponseDto> UpdateQAFieldsAsync(int id, UpdateQAFieldsDto dto, int requestingUserId)
     {
         var task = await _taskRepository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Task with id {id} not found.");
@@ -204,12 +199,11 @@ public class TaskService : ITaskService
 
     // ── Jira integration ──────────────────────────────────────────────────────
 
-    public async Task<TaskResponseDto> LinkJiraIssueAsync(int taskId, string issueKey)
+    public async System.Threading.Tasks.Task<TaskResponseDto> LinkJiraIssueAsync(int taskId, string issueKey)
     {
         var task = await _taskRepository.GetByIdAsync(taskId)
             ?? throw new NotFoundException($"Task with id {taskId} not found.");
 
-        // Validate the issue exists in Jira before linking
         await _jiraService.GetIssueAsync(issueKey);
 
         task.JiraIssueKey = issueKey;
@@ -219,7 +213,7 @@ public class TaskService : ITaskService
         return MapToDto(updated!);
     }
 
-    public async Task<TaskResponseDto> UnlinkJiraIssueAsync(int taskId)
+    public async System.Threading.Tasks.Task<TaskResponseDto> UnlinkJiraIssueAsync(int taskId)
     {
         var task = await _taskRepository.GetByIdAsync(taskId)
             ?? throw new NotFoundException($"Task with id {taskId} not found.");
@@ -231,7 +225,7 @@ public class TaskService : ITaskService
         return MapToDto(updated!);
     }
 
-    public async Task<TaskResponseDto> CreateJiraIssueForTaskAsync(int taskId, CreateJiraIssueDto dto)
+    public async System.Threading.Tasks.Task<TaskResponseDto> CreateJiraIssueForTaskAsync(int taskId, CreateJiraIssueDto dto)
     {
         var task = await _taskRepository.GetByIdAsync(taskId)
             ?? throw new NotFoundException($"Task with id {taskId} not found.");
@@ -255,7 +249,7 @@ public class TaskService : ITaskService
         return MapToDto(updated!);
     }
 
-    public async Task<TaskResponseDto> ImportFromJiraAsync(JiraImportDto dto)
+    public async System.Threading.Tasks.Task<TaskResponseDto> ImportFromJiraAsync(JiraImportDto dto)
     {
         if (await _releaseRepository.GetByIdAsync(dto.ReleaseId) is null)
             throw new NotFoundException($"Release with id {dto.ReleaseId} not found.");
@@ -272,15 +266,15 @@ public class TaskService : ITaskService
 
         var jiraIssue = await _jiraService.GetIssueAsync(dto.JiraIssueKey);
 
-        var task = new Entities.Task
+        var task = new ProjectManagement.DAL.Task
         {
-            Title               = jiraIssue.Summary,
-            JiraIssueKey        = dto.JiraIssueKey,
-            ReleaseId           = dto.ReleaseId,
-            AssignedToUserId    = dto.AssignedToUserId,
-            AssignedToQAUserId  = dto.AssignedToQAUserId,
-            Status              = TaskStatus.Pending,
-            CreatedAt           = DateTime.UtcNow
+            Title              = jiraIssue.Summary,
+            JiraIssueKey       = dto.JiraIssueKey,
+            ReleaseId          = dto.ReleaseId,
+            AssignedToUserId   = dto.AssignedToUserId,
+            AssignedToQAUserId = dto.AssignedToQAUserId,
+            Status             = TaskStatus.Pending,
+            CreatedAt          = DateTime.UtcNow
         };
 
         var created = await _taskRepository.AddAsync(task);
@@ -288,34 +282,9 @@ public class TaskService : ITaskService
         return MapToDto(full!);
     }
 
-    public async Task<TaskResponseDto> UpdateRemarksAsync(int id, string? remarks)
-{
-    var task = await _taskRepository.GetByIdAsync(id)
-        ?? throw new NotFoundException($"Task with id {id} not found.");
-
-    task.Remarks = remarks;
-
-    await _taskRepository.UpdateAsync(task);
-
-    var updated = await _taskRepository.GetByIdAsync(id);
-    return MapToDto(updated!);
-}
-public async Task<TaskResponseDto> UpdateRemarksAsync(int id, string? remarks)
-{
-    var task = await _taskRepository.GetByIdAsync(id)
-        ?? throw new NotFoundException($"Task with id {id} not found.");
-
-    task.Remarks = remarks;
-
-    await _taskRepository.UpdateAsync(task);
-
-    var updated = await _taskRepository.GetByIdAsync(id);
-    return MapToDto(updated!);
-}
-
     // ── Mapping ───────────────────────────────────────────────────────────────
 
-    private static TaskResponseDto MapToDto(Entities.Task task) => new()
+    private static TaskResponseDto MapToDto(ProjectManagement.DAL.Task task) => new()
     {
         Id                   = task.Id,
         Title                = task.Title,

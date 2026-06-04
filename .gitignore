@@ -131,4 +131,9 @@ vite.svg
 # ESLint cache
 
 .eslintcache
-
+.vs/
+node_modules/
+*.log
+dist/
+build/
+.env

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ProjectManagement.DAL\ProjectManagement.DAL.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SignInManager<T>/UserManager<T> in AuthService/TaskService/UserService -->
+    <!-- IHttpClientFactory in JiraService -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
+  </ItemGroup>
+
+</Project>
