@@ -18,6 +18,8 @@ public interface ITaskService
     Task<TaskResponseDto> UpdateQAFieldsAsync(int id, UpdateQAFieldsDto dto, int requestingUserId);
     Task DeleteAsync(int id);
 
+    Task<TaskResponseDto> UpdateRemarksAsync(int id, string? remarks);
+
     // Jira integration
     Task<TaskResponseDto> LinkJiraIssueAsync(int taskId, string issueKey);
     Task<TaskResponseDto> UnlinkJiraIssueAsync(int taskId);
