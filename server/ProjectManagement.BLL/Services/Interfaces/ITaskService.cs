@@ -15,6 +15,7 @@ public interface ITaskService
     System.Threading.Tasks.Task<TaskResponseDto> UpdateDevFieldsAsync(int id, UpdateDevFieldsDto dto, int requestingUserId);
     System.Threading.Tasks.Task<TaskResponseDto> UpdateQAFieldsAsync(int id, UpdateQAFieldsDto dto, int requestingUserId);
     Task DeleteAsync(int id);
+    Task<TaskResponseDto> UpdateRemarksAsync(int id, string? remarks);
 
     // Jira integration
     System.Threading.Tasks.Task<TaskResponseDto> LinkJiraIssueAsync(int taskId, string issueKey);
