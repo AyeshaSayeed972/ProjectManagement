@@ -312,18 +312,6 @@ public async Task<TaskResponseDto> UpdateRemarksAsync(int id, string? remarks)
     var updated = await _taskRepository.GetByIdAsync(id);
     return MapToDto(updated!);
 }
-public async Task<TaskResponseDto> UpdatePRLinkAsync(int id, string? prLink)
-{
-    var task = await _taskRepository.GetByIdAsync(id)
-        ?? throw new NotFoundException($"Task with id {id} not found.");
-
-    task.PRLink = prLink;
-
-    await _taskRepository.UpdateAsync(task);
-
-    var updated = await _taskRepository.GetByIdAsync(id);
-    return MapToDto(updated!);
-}
 
     // ── Mapping ───────────────────────────────────────────────────────────────
 
