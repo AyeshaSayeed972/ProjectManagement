@@ -288,6 +288,19 @@ public class TaskService : ITaskService
         return MapToDto(full!);
     }
 
+    public async Task<TaskResponseDto> UpdateRemarksAsync(int id, string? remarks)
+{
+    var task = await _taskRepository.GetByIdAsync(id)
+        ?? throw new NotFoundException($"Task with id {id} not found.");
+
+    task.Remarks = remarks;
+
+    await _taskRepository.UpdateAsync(task);
+
+    var updated = await _taskRepository.GetByIdAsync(id);
+    return MapToDto(updated!);
+}
+
     // ── Mapping ───────────────────────────────────────────────────────────────
 
     private static TaskResponseDto MapToDto(Entities.Task task) => new()
